@@ -1,0 +1,49 @@
+{
+  "name": "get-yt-transcript-plugin",
+  "version": "0.0.0",
+  "description": "Get YT transcript.",
+  "keywords": [],
+  "license": "MIT",
+  "author": "Paul Bratslavsky <paul.bratslavsky@strapi.io>",
+  "type": "commonjs",
+  "exports": {
+    "./package.json": "./package.json",
+    "./strapi-server": {
+      "types": "./dist/server/src/index.d.ts",
+      "source": "./server/src/index.ts",
+      "import": "./dist/server/index.mjs",
+      "require": "./dist/server/index.js",
+      "default": "./dist/server/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "strapi-plugin build",
+    "test:ts:back": "run -T tsc -p server/tsconfig.json",
+    "verify": "strapi-plugin verify",
+    "watch": "strapi-plugin watch",
+    "watch:link": "strapi-plugin watch:link"
+  },
+  "dependencies": {
+    "youtubei.js": "^10.5.0"
+  },
+  "devDependencies": {
+    "@strapi/sdk-plugin": "^5.2.6",
+    "@strapi/strapi": "^5.0.4",
+    "@strapi/typescript-utils": "^5.0.4",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "peerDependencies": {
+    "@strapi/sdk-plugin": "^5.2.6",
+    "@strapi/strapi": "^5.0.4"
+  },
+  "strapi": {
+    "kind": "plugin",
+    "name": "get-yt-transcript-plugin",
+    "displayName": "YT Transcript",
+    "description": "Get YT transcript."
+  }
+}
