@@ -1,61 +1,212 @@
-# 🚀 Getting started with Strapi
+# Building Your First Strapi Plugin: YouTube Transcript Fetcher
 
-Strapi comes with a full featured [Command Line Interface](https://docs.strapi.io/dev-docs/cli) (CLI) which lets you scaffold and manage your project in seconds.
+This guide will walk you through the process of creating a Strapi plugin that fetches YouTube video transcripts.
 
-### `develop`
+## Step 1: Set up Strapi
 
-Start your Strapi application with autoReload enabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-develop)
+1. Create a new Strapi project:
+   ```bash
+   npx create-strapi-app@latest get-yt-summary
+   ```
+2. Follow the prompts to set up your project:
+   - Use the default SQLite database
+   - Don't start with example structure & data
+   - Use TypeScript
+   - Install dependencies with npm
+   - Initialize a git repository
 
-```
-npm run develop
-# or
-yarn develop
-```
+3. Start Strapi:
+   ```bash
+   yarn develop
+   ```
+4. Create your first admin user through the Strapi admin panel.
 
-### `start`
+## Step 2: Initialize the Plugin
 
-Start your Strapi application with autoReload disabled. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-start)
+1. Use the Strapi Plugin CLI SDK to create a new plugin:
+   ```bash
+   npx @strapi/sdk-plugin@latest init get-yt-transcript-plugin
+   ```
+2. Follow the prompts to set up your plugin:
+   - Plugin name: get-yt-transcript-plugin
+   - Display name: YT Transcript
+   - Description: Get YT transcript.
+   - Register with the server: yes
+   - Use TypeScript: yes
 
-```
-npm run start
-# or
-yarn start
-```
+## Step 3: Configure the Plugin
 
-### `build`
+1. Reference the plugin in Strapi's configuration. Create or edit `config/plugins.ts`:
+   ```typescript
+   export default {
+     'get-yt-transcript-plugin': {
+       enabled: true,
+       resolve: './src/plugins/get-yt-transcript-plugin'
+     },
+   }
+   ```
 
-Build your admin panel. [Learn more](https://docs.strapi.io/dev-docs/cli#strapi-build)
+2. Navigate to the plugin folder and install dependencies:
+   ```bash
+   cd src/plugins/get-yt-transcript-plugin
+   yarn install
+   ```
 
-```
-npm run build
-# or
-yarn build
-```
+3. Build the plugin:
+   ```bash
+   yarn build
+   ```
 
-## ⚙️ Deployment
+4. Start the plugin in watch mode:
+   ```bash
+   yarn watch
+   ```
 
-Strapi gives you many possible deployment options for your project including [Strapi Cloud](https://cloud.strapi.io). Browse the [deployment section of the documentation](https://docs.strapi.io/dev-docs/deployment) to find the best solution for your use case.
+5. Restart your Strapi server:
+   ```bash
+   yarn develop
+   ```
 
-```
-yarn strapi deploy
-```
+## Step 4: Set Up Plugin Routes
 
-## 📚 Learn more
+1. Update `src/plugins/get-yt-transcript-plugin/server/src/routes/index.ts`:
+   ```typescript
+   import contentApi from "./content-api";
+   import admin from "./admin";
 
-- [Resource center](https://strapi.io/resource-center) - Strapi resource center.
-- [Strapi documentation](https://docs.strapi.io) - Official Strapi documentation.
-- [Strapi tutorials](https://strapi.io/tutorials) - List of tutorials made by the core team and the community.
-- [Strapi blog](https://strapi.io/blog) - Official Strapi blog containing articles made by the Strapi team and the community.
-- [Changelog](https://strapi.io/changelog) - Find out about the Strapi product updates, new features and general improvements.
+   export default {
+     "content-api": {
+       type: "content-api",
+       routes: [...contentApi],
+     },
+     admin: {
+       type: "admin",
+       routes: [...admin],
+     },
+   };
+   ```
 
-Feel free to check out the [Strapi GitHub repository](https://github.com/strapi/strapi). Your feedback and contributions are welcome!
+2. Create `src/plugins/get-yt-transcript-plugin/server/src/routes/content-api.ts`:
+   ```typescript
+   export default [
+     {
+       method: 'GET',
+       path: '/yt-transcript/:videoId',
+       handler: 'controller.getYoutubeTranscript',
+       config: {  
+         policies: [],  
+       },  
+     },
+   ];
+   ```
 
-## ✨ Community
+3. Create `src/plugins/get-yt-transcript-plugin/server/src/routes/admin.ts`:
+   ```typescript
+   export default [
+     {
+       method: 'GET',
+       path: '/',
+       handler: 'controller.index',
+       config: {
+         policies: [],
+       },
+     },
+   ];
+   ```
 
-- [Discord](https://discord.strapi.io) - Come chat with the Strapi community including the core team.
-- [Forum](https://forum.strapi.io/) - Place to discuss, ask questions and find answers, show your Strapi project and get feedback or just talk with other Community members.
-- [Awesome Strapi](https://github.com/strapi/awesome-strapi) - A curated list of awesome things related to Strapi.
+## Step 5: Create the Service
 
----
+1. Create `src/plugins/get-yt-transcript-plugin/server/src/services/index.ts`:
+   ```typescript
+   import type { Core } from '@strapi/strapi';
 
-<sub>🤫 Psst! [Strapi is hiring](https://strapi.io/careers).</sub>
+   const fetchTranscript = async (
+     url: string
+   ): Promise<(string | undefined)[] | undefined> => {
+     const { Innertube } = await import("youtubei.js");
+
+     const youtube = await Innertube.create({
+       lang: "en",
+       location: "US",
+       retrieve_player: false,
+     });
+
+     try {
+       const info = await youtube.getInfo(url);
+       const transcriptData = await info.getTranscript();
+       return transcriptData?.transcript?.content?.body?.initial_segments.map(
+         (segment) => segment.snippet.text
+       );
+     } catch (error) {
+       console.error("Error fetching transcript:", error);
+       throw error;
+     }
+   };
+
+   async function getYouTubeTranscript(videoUrl: string) {
+     const videoId = new URL(videoUrl).searchParams.get("v");
+     const transcript = await fetchTranscript(videoId);
+     return transcript?.join(" ");
+   }
+
+   const service = ({ strapi }: { strapi: Core.Strapi }) => ({
+     async getYoutubeTranscript(videoId: string) {
+       const youtubeIdRegex = /^[a-zA-Z0-9_-]{11}$/;
+       const isValid = youtubeIdRegex.test(videoId);
+
+       if (!isValid) return { error: 'Invalid video ID', data: null };
+
+       try {
+         const baseUrl = 'https://www.youtube.com';
+         const path = '/watch';
+         const url = new URL(path, baseUrl);
+         url.searchParams.set('v', videoId);
+
+         const transcript = await getYouTubeTranscript(url.href);
+         return transcript;
+       } catch (error) {
+         return { error: 'Error fetching transcript: ' + error, data: null };
+       }
+     },
+   });
+
+   export default service;
+   ```
+
+2. Install the required library:
+   ```bash
+   yarn add youtubei.js
+   ```
+
+## Step 6: Create the Controller
+
+1. Create `src/plugins/get-yt-transcript-plugin/server/src/controllers/index.ts`:
+   ```typescript
+   import type { Core } from '@strapi/strapi';
+
+   const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
+     async getYoutubeTranscript(ctx) {
+       ctx.body = await strapi
+         .plugin('get-yt-transcript-plugin')
+         .service('service')
+         .getYoutubeTranscript(ctx.params.videoId);
+     },
+   });
+
+   export default controller;
+   ```
+
+## Step 7: Test the Plugin
+
+1. Ensure your Strapi server is running:
+   ```bash
+   yarn develop
+   ```
+
+2. Test the endpoint by visiting:
+   ```
+   http://localhost:1337/api/get-yt-transcript-plugin/yt-transcript/dQw4w9WgXcQ
+   ```
+   Replace `dQw4w9WgXcQ` with any valid YouTube video ID.
+
+Congratulations! You've now created a Strapi plugin that fetches YouTube video transcripts. This plugin demonstrates how to create custom routes, services, and controllers within a Strapi plugin.# building-first-plugin-strapi-5
